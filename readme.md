@@ -1,3 +1,3 @@
-# Letterboxd Scraer
+# Letterboxd Scraper
 
 A Python Letterboxd Scraper
