@@ -21,10 +21,12 @@ class pyboxd():
             self.watchlist = []
             self.userNetwork = {}
             self.isPatron = False
+            self.isPro = False
+            self.userLists = 0
 
 
         def __str__(self):
-            userInfo = f'Username: {self.username}\nFilms: {self.films}\nThis Year:{self.thisYear}\nFollowing: {self.following}\nFollowers: {self.followers}\nFavorite Films: {self.favoriteFilms}\nPatron: {self.isPatron}'
+            userInfo = f'Username: {self.username}\nFilms: {self.films}\nThis Year:{self.thisYear}\nLists: {self.userLists}\nFollowing: {self.following}\nFollowers: {self.followers}\nFavorite Films: {self.favoriteFilms}\nPatron: {self.isPatron}\nPro: {self.isPro}'
             return userInfo
         
         def set_username(self, username) -> None:
@@ -39,12 +41,14 @@ class pyboxd():
         def get_profile_stats(self) -> None:
             
             self.profileStats = pyboxd.scrape_profile_stats(soup = self.mainSoup)
-            self.films = self.profileStats[0]
-            self.thisYear = self.profileStats[1]
-            self.following = self.profileStats[2]
-            self.followers = self.profileStats[3]
-            self.favoriteFilms = self.profileStats[4]
-            self.isPatron = self.profileStats[5]
+            self.films = self.profileStats[0]['Films']
+            self.thisYear = self.profileStats[0]['This year']
+            self.following = self.profileStats[0]['Following']
+            self.followers = self.profileStats[0]['Followers']
+            self.userLists = self.profileStats[0]['Lists']   
+            self.favoriteFilms = self.profileStats[1]
+            self.isPatron = self.profileStats[2][0]
+            self.isPro = self.profileStats[2][1]
     
         def get_user_watched_films(self) -> None:
             self.filmsResponse = requests_get(f'https://letterboxd.com/{self.username}/films/').text
@@ -69,23 +73,35 @@ class pyboxd():
     @staticmethod
 
     def scrape_profile_stats(soup) -> list:
-        stats = findall(r'<span class="value">(\d+)</span>', str(soup))
+        stats = findall(r'<span class="value">([\d,]+)</span>', str(soup))
+        defintion = findall(r'<span class="definition">([\w\s]+)</span>', str(soup))
+        stats_dict = dict(zip(defintion, stats))
+        base_dict = {'Films': 0, 'This year': 0, 'Following': 0, 'Followers': 0, 'Lists': 0}
+        # update the base_dict with the stats_dict
+        base_dict.update(stats_dict)
+
 
         # find <section id="favourites" class="section"> 
         favs_soup = soup.find('section', {'id': 'favourites'})
 
         # find data-film-slug="([^"]+)" in the section
         favorite_films = findall(r'data-film-slug="([^"]+)"', str(favs_soup))
-        stats.append(favorite_films)
 
+        badges = []
         # find <span class="badge -patron ">Patron</span> in the soup
         patron = soup.find('span', class_='badge -patron')
         if patron:
-            stats.append(True)
+            badges.append(True)
         else:
-            stats.append(False)
+            badges.append(False)
         
-        return stats
+        pro = soup.find('span', class_='badge -pro')
+        if pro:
+            badges.append(True)
+        else:
+            badges.append(False)
+
+        return [base_dict, favorite_films, badges]
        
     def scrape_watched_films(user:str, soup:str) -> list:
         data = []
@@ -150,7 +166,7 @@ class pyboxd():
     
 def main():
     user = pyboxd.user()
-    user.set_username('fer_nwn')
+    user.set_username('kurstboy') #kurstboy
     user.get_profile_stats()
     #user.get_user_watched_films()
     #user.get_user_watchlist()
@@ -162,4 +178,5 @@ def main():
     #print(user.watchlist)
     #print(user.userNetwork)
     #print(user.userBio)
+
 main()
