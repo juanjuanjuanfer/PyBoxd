@@ -25,6 +25,7 @@ class PyBoxd():
             self.isPatron = False
             self.isPro = False
             self.userLists = 0
+            self.userImage = None
 
 
         def __str__(self):
@@ -71,6 +72,9 @@ class PyBoxd():
 
         def get_user_bio(self) -> None:
             self.userBio = PyBoxd.scrapeBio(soup = self.mainSoup)
+
+        def get_user_image(self) -> None:
+            self.userImage = findall(r'<img\s+[^>]*src="([^"]+)"', str(self.mainSoup.find('span', class_='avatar -a110 -large')))
 
     class user_diary():
         
@@ -289,20 +293,23 @@ class PyBoxd():
 
 def main():
     user = PyBoxd.user()
-    user.set_username('kurstboy') #kurstboy
+    user.set_username('fer_nwn') #kurstboy
     #user.get_profile_stats()
     #user.get_user_watched_films()
     #user.get_user_watchlist()
     #user.get_user_network()
     #user.get_user_bio()
-    diary = PyBoxd.user_diary(user)
+    print(user)
+    user.get_user_image()
+    print(user.userImage)
+    #diary = PyBoxd.user_diary(user)
     #print(diary)
     #import time
     #start_time = time.time()
-    diary.get_user_diary()
+    #diary.get_user_diary()
     #end_time = time.time()
     #print(f'Time taken to get user diary: {end_time - start_time} seconds')
-    print(len(diary.userDiary))
+    #print(len(diary.userDiary))
 
     #[print(diary.userDiary[_]) for _ in range(len(diary.userDiary))]
     #print(user)
