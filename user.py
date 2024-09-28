@@ -1,8 +1,8 @@
 from bs4 import BeautifulSoup
 from requests import get as requests_get, exceptions as requests_exceptions
-from re import findall, compile
+from re import findall, compile, DOTALL
 
-class pyboxd():
+class PyBoxd():
 
     class user():
 
@@ -40,7 +40,7 @@ class pyboxd():
      
         def get_profile_stats(self) -> None:
             
-            self.profileStats = pyboxd.scrape_profile_stats(soup = self.mainSoup)
+            self.profileStats = PyBoxd.scrape_profile_stats(soup = self.mainSoup)
             self.films = self.profileStats[0]['Films']
             self.thisYear = self.profileStats[0]['This year']
             self.following = self.profileStats[0]['Following']
@@ -53,26 +53,41 @@ class pyboxd():
         def get_user_watched_films(self) -> None:
             self.filmsResponse = requests_get(f'https://letterboxd.com/{self.username}/films/').text
             self.filmsSoup = BeautifulSoup(self.filmsResponse, 'html.parser')
-            self.watchedFilms = pyboxd.scrape_watched_films(user = self.username, soup = self.filmsSoup)
+            self.watchedFilms = PyBoxd.scrape_watched_films(user = self.username, soup = self.filmsSoup)
 
         def get_user_watchlist(self) -> None:
             self.filmsResponse = requests_get(f'https://letterboxd.com/{self.username}/watchlist/').text
             self.filmsSoup = BeautifulSoup(self.filmsResponse, 'html.parser')
-            self.watchlist = pyboxd.scrape_watchlist(user = self.username, soup = self.filmsSoup)
+            self.watchlist = PyBoxd.scrape_watchlist(user = self.username, soup = self.filmsSoup)
 
         def get_user_network(self) -> None:
             self.networkFollowingResponse = requests_get(f'https://letterboxd.com/{self.username}/following/').text
             self.networkFollowerResponse = requests_get(f'https://letterboxd.com/{self.username}/followers/').text
             self.networkFollowingSoup = BeautifulSoup(self.networkFollowingResponse, 'html.parser')
             self.networkFollowerSoup = BeautifulSoup(self.networkFollowerResponse, 'html.parser')
-            self.userNetwork = pyboxd.scrape_user_network(user = self.username, soup = self.networkFollowingSoup, soup2 = self.networkFollowerSoup)
+            self.userNetwork = PyBoxd.scrape_user_network(user = self.username, soup = self.networkFollowingSoup, soup2 = self.networkFollowerSoup)
 
         def get_user_bio(self) -> None:
-            self.userBio = pyboxd.scrapeBio(soup = self.mainSoup)
+            self.userBio = PyBoxd.scrapeBio(soup = self.mainSoup)
+
+    class user_diary():
+        
+        def __init__(self, user:object) -> None:
+            self.user = user.username
+            self.userDiary = None
+
+        def __str__(self) -> str:
+            userDriaryInfo = f'Username: {self.user}'
+            return userDriaryInfo
+
+        def get_user_diary(self) -> None:
+            self.userDiaryResponse = requests_get(f'https://letterboxd.com/{self.user}/films/diary/').text
+            self.userDiarySoup = BeautifulSoup(self.userDiaryResponse, 'html.parser')
+            self.userDiary = PyBoxd.scrape_user_diary(user = self.user, soup = self.userDiarySoup)
+
 
     @staticmethod
-
-    def scrape_profile_stats(soup) -> list:
+    def scrape_profile_stats(soup:BeautifulSoup) -> list:
         stats = findall(r'<span class="value">([\d,]+)</span>', str(soup))
         defintion = findall(r'<span class="definition">([\w\s]+)</span>', str(soup))
         stats_dict = dict(zip(defintion, stats))
@@ -102,8 +117,9 @@ class pyboxd():
             badges.append(False)
 
         return [base_dict, favorite_films, badges]
-       
-    def scrape_watched_films(user:str, soup:str) -> list:
+    
+    @staticmethod
+    def scrape_watched_films(user:str, soup:BeautifulSoup) -> list:
         data = []
         pages = findall(r'films/page/(\d+)/', str(soup))
         if len(pages) == 0:
@@ -116,7 +132,8 @@ class pyboxd():
             data.extend(film_slugs)
         return data
     
-    def scrape_watchlist(user:str, soup:str) -> list:
+    @staticmethod
+    def scrape_watchlist(user:str, soup:BeautifulSoup) -> list:
         data = []
         pages = findall(r'watchlist/page/(\d+)/', str(soup))
         if len(pages) == 0:
@@ -129,6 +146,7 @@ class pyboxd():
             data.extend(film_slugs)
         return data
     
+    @staticmethod    
     def scrape_user_network(user:str,soup:BeautifulSoup, soup2:BeautifulSoup) -> dict:
         dataFollowing = []
         dataFollowers = []
@@ -158,25 +176,126 @@ class pyboxd():
 
         return {"following": dataFollowing, "followers": dataFollowers}
 
+    @staticmethod
     def scrapeBio(soup:BeautifulSoup) -> str:
         bio = soup.find('div', class_ = "collapsible-text body-text -small js-bio-content")
         bio = bio.find_all('p')
         bio = [x.text for x in bio]
         return bio
-    
+
+    @staticmethod    
+    def scrape_user_diary(user:str, soup:BeautifulSoup) -> list:
+        pages = findall(r'films/diary/page/(\d+)/', str(soup))
+        if len(pages) == 0:
+            pages = ['1']
+        last_page = max([int(page) for page in pages])
+
+        dates_ = []
+        film_slugs_ = []
+        ratings_ = []
+        likes_ = []
+        rewatch_ = []
+        review_ = []
+
+        # First page is already parsed, so handle it directly
+        dates_.extend(PyBoxd.find_dates(soup=soup))
+        film_slugs_.extend(PyBoxd.find_film_slugs(soup=soup))
+        ratings_.extend(PyBoxd.find_ratings(soup=soup))
+        likes_.extend(PyBoxd.find_likes(soup=soup))
+        rewatch_.extend(PyBoxd.find_rewatches(soup=soup))
+        review_.extend(PyBoxd.find_reviews(soup=soup))
+
+        # Loop through remaining pages
+        for i in range(2, last_page + 1):
+            response = requests_get(f'https://letterboxd.com/{user}/films/diary/page/{i}/').text
+            soup = BeautifulSoup(response, 'html.parser')
+            dates_.extend(PyBoxd.find_dates(soup=soup))
+            film_slugs_.extend(PyBoxd.find_film_slugs(soup=soup))
+            ratings_.extend(PyBoxd.find_ratings(soup=soup))
+            likes_.extend(PyBoxd.find_likes(soup=soup))
+            rewatch_.extend(PyBoxd.find_rewatches(soup=soup))
+            review_.extend(PyBoxd.find_reviews(soup=soup))
+
+        return  [
+                    {
+                        "date": dates_[j],
+                        "film_slug": film_slugs_[j],
+                        "rating": ratings_[j],
+                        "like": likes_[j],
+                        "rewatch": rewatch_[j],
+                        "review": review_[j]
+                    }
+
+                    for j in range(len(film_slugs_))
+                ]
+
+    @staticmethod
+    def find_dates(soup:object) -> list:
+        return findall(r'films/diary/for/(\d{4}/\d{2}/\d{2})/', str(soup))
+
+    @staticmethod    
+    def find_film_slugs(soup:object) -> list:
+        return findall(r'data-film-slug="([^"]+)"', str(soup))[::2]
+
+    @staticmethod    
+    def find_ratings(soup:object) -> list:
+        rating_list = []
+        for rating_tag in soup.find_all('span', class_= 'rating'):
+            rating_class = rating_tag.get('class', [])
+            rated_value = next((cls.split('-')[-1] for cls in rating_class if cls.startswith('rated-')), None)
+
+            if rated_value:
+                rating_list.append(int(rated_value))
+            else:
+                rating_list.append('NA')
+        return rating_list
+
+    @staticmethod
+    def find_likes(soup:object) -> list:
+        return [True if 'icon-liked' in like else False for like in findall(r'<td class="td-like center diary-like">(.*?)</td>', str(soup))]
+
+    @staticmethod    
+    def find_rewatches(soup:object) -> list:
+        return [False if 'icon-status' in rewatch else True for rewatch in findall(r'<td class="td-rewatch center( icon-status-off)?">', str(soup))]        
+
+    @staticmethod    
+    def find_reviews(soup:object) -> list:
+        return [
+            f'https://letterboxd.com{findall(r"href=\"([^\"]+)\"", td)[0]}reviews/' 
+            if findall(r'href="([^"]+)"', td) 
+            else 'NA' 
+            for td in findall(r'<td class="td-review center(?: [^"]*)?">(.*?)</td>', str(soup), DOTALL)
+        ]
+
+
+
+
+
+
 def main():
-    user = pyboxd.user()
+    user = PyBoxd.user()
     user.set_username('kurstboy') #kurstboy
-    user.get_profile_stats()
+    #user.get_profile_stats()
     #user.get_user_watched_films()
     #user.get_user_watchlist()
     #user.get_user_network()
     #user.get_user_bio()
-    
-    print(user)
+    diary = PyBoxd.user_diary(user)
+    print(diary)
+    diary.get_user_diary()
+    print(len(diary.userDiary))
+    #[print(diary.userDiary[_]) for _ in range(len(diary.userDiary))]
+    #print(user)
     #print(user.watchedFilms)
     #print(user.watchlist)
     #print(user.userNetwork)
     #print(user.userBio)
 
 main()
+
+""" 
+    Username: kurstboy
+    Time taken to get user diary: 37.64339208602905 seconds
+    1727 movies scraped
+
+"""
