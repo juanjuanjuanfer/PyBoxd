@@ -1,6 +1,8 @@
 from bs4 import BeautifulSoup
 from requests import get as requests_get, exceptions as requests_exceptions
 from re import findall, compile, DOTALL
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import chain
 
 class PyBoxd():
 
@@ -88,63 +90,61 @@ class PyBoxd():
 
     @staticmethod
     def scrape_profile_stats(soup:BeautifulSoup) -> list:
+        base_dict = {'Films': 0, 'This year': 0, 'Following': 0, 'Followers': 0, 'Lists': 0}
         stats = findall(r'<span class="value">([\d,]+)</span>', str(soup))
         defintion = findall(r'<span class="definition">([\w\s]+)</span>', str(soup))
         stats_dict = dict(zip(defintion, stats))
-        base_dict = {'Films': 0, 'This year': 0, 'Following': 0, 'Followers': 0, 'Lists': 0}
-        # update the base_dict with the stats_dict
         base_dict.update(stats_dict)
 
-
-        # find <section id="favourites" class="section"> 
-        favs_soup = soup.find('section', {'id': 'favourites'})
-
-        # find data-film-slug="([^"]+)" in the section
-        favorite_films = findall(r'data-film-slug="([^"]+)"', str(favs_soup))
+        favorite_films = findall(r'data-film-slug="([^"]+)"', str(soup.find('section', {'id': 'favourites'})))
 
         badges = []
-        # find <span class="badge -patron ">Patron</span> in the soup
-        patron = soup.find('span', class_='badge -patron')
-        if patron:
-            badges.append(True)
-        else:
-            badges.append(False)
-        
-        pro = soup.find('span', class_='badge -pro')
-        if pro:
-            badges.append(True)
-        else:
-            badges.append(False)
+        badges.append([True if soup.find('span', class_='badge -patron') else False])
+        badges.append([True if soup.find('span', class_='badge -pro') else False])
 
         return [base_dict, favorite_films, badges]
     
     @staticmethod
-    def scrape_watched_films(user:str, soup:BeautifulSoup) -> list:
-        data = []
+    def process_page(user:str, i:int, page_type:str='films') -> list:
+        try:
+            response = requests_get(f'https://letterboxd.com/{user}/{page_type}/page/{i}/')
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            return findall(r'data-film-slug="([^"]+)"', str(soup))
+        except requests_exceptions as e:
+            print(f"Error fetching page {i}: {e}")
+            return []
+    
+    @staticmethod
+    def scrape_watched_films(user: str, soup: BeautifulSoup) -> list:
         pages = findall(r'films/page/(\d+)/', str(soup))
         if len(pages) == 0:
             pages = ['1']
         last_page = max([int(page) for page in pages])
-        for i in range(1, last_page + 1):
-            response = requests_get(f'https://letterboxd.com/{user}/films/page/{i}/').text
-            soup = BeautifulSoup(response, 'html.parser')
-            film_slugs = findall(r'data-film-slug="([^"]+)"', str(soup))
-            data.extend(film_slugs)
-        return data
+        
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(PyBoxd.process_page, user, i, page_type="films") for i in range(1, last_page + 1)]
+        
+            film_slugs = []
+            for future in as_completed(futures):
+                film_slugs.append(future.result())
+
+        return list(chain.from_iterable(film_slugs))
     
     @staticmethod
     def scrape_watchlist(user:str, soup:BeautifulSoup) -> list:
-        data = []
         pages = findall(r'watchlist/page/(\d+)/', str(soup))
         if len(pages) == 0:
             pages = ['1']
         last_page = max([int(page) for page in pages])
-        for i in range(1, last_page + 1):
-            response = requests_get(f'https://letterboxd.com/{user}/watchlist/page/{i}/').text
-            soup = BeautifulSoup(response, 'html.parser')
-            film_slugs = findall(r'data-film-slug="([^"]+)"', str(soup))
-            data.extend(film_slugs)
-        return data
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(PyBoxd.process_page, user, i, page_type="watchlist") for i in range(1, last_page + 1)]
+
+            film_slugs = []
+            for future in as_completed(futures):
+                film_slugs.append(future.result())
+        
+        return list(chain.from_iterable(film_slugs))
     
     @staticmethod    
     def scrape_user_network(user:str,soup:BeautifulSoup, soup2:BeautifulSoup) -> dict:
@@ -275,19 +275,19 @@ class PyBoxd():
 def main():
     user = PyBoxd.user()
     user.set_username('kurstboy') #kurstboy
-    #user.get_profile_stats()
+    user.get_profile_stats()
     #user.get_user_watched_films()
     #user.get_user_watchlist()
     #user.get_user_network()
     #user.get_user_bio()
-    diary = PyBoxd.user_diary(user)
-    print(diary)
-    diary.get_user_diary()
-    print(len(diary.userDiary))
+    #diary = PyBoxd.user_diary(user)
+    #print(diary)
+    #diary.get_user_diary()
+    #print(len(diary.userDiary))
     #[print(diary.userDiary[_]) for _ in range(len(diary.userDiary))]
-    #print(user)
-    #print(user.watchedFilms)
-    #print(user.watchlist)
+    print(user)
+    #print(len(user.watchedFilms))
+    #print(len(user.watchlist))
     #print(user.userNetwork)
     #print(user.userBio)
 
