@@ -28,7 +28,7 @@ class Film:
 
 
     def __str__(self) -> str:
-        film_status = {"Film name": self.filmName, "filmReleaseYear": self.filmReleaseYear, "filmDirectors": self.filmDirectors, "filmSynopsis": self.filmSynopsis, "filmPoster": self.filmPoster, "filmCast": self.filmCast, "filmCrew": self.filmCrew, "filmDetails": self.filmDetails, "filmGenres": self.filmGenres, "filmReleases": self.filmReleases, "filmDuration": self.filmDuration, "filmStats": self.filmStats, "filmFans": self.filmFans, "filmFansLink": self.filmFansLink, "filmAverageRating": self.filmAverageRating, "filmReviews": self.filmReviews}
+        film_status = self.filmName
         return str(film_status)
     
     def set_film_name(self, film_name:str) -> None:
@@ -141,7 +141,7 @@ class Film:
     class FilmReview:
         def __init__(self, filmName:str) -> None:
             self.filmName: str = filmName
-            self.filmReviews: dict = {}
+            self.filmReviews: list = []
 
         
         def __str__(self) -> str:
@@ -153,13 +153,14 @@ class Film:
 
     @staticmethod
     def scrape_film_reviews(film_name:str, pages:int=1) -> dict:
-        reviews_dict = {}
+        reviews_list = []
         for i in range(1, pages + 1):
             response = requests_get(f'https://letterboxd.com/film/{film_name}/reviews/page/{i}/')
             soup = BeautifulSoup(response.text, 'html.parser')
             reviews = soup.find_all('li', class_='film-detail')
-            review_info = {}
+            
             for review in reviews:
+                review_info = {}
                 # find <a class="avatar -a40" href="/(\w+)/">
                 pattern = r'href="/(\w+)/"'
                 username = search(pattern, str(review))
@@ -179,13 +180,13 @@ class Film:
                         review_text = review_text_element.get_text(strip=True)
                         review_info['review_text'] = review_text
                         
-                rating_span = review.find('span', class_='rating -green')
+                rating_span = review.find('span', class_=compile(r'rating -green \S+'))
                 if rating_span:
                     review_info['rating'] = rating_span.get_text(strip=True)
 
                 # Extract the date
                 date_span = review.find('span', class_='_nobr')
-                if date_span:
+                if date_span:   
                     review_info['date'] = date_span.get_text(strip=True)
 
                 # Extract the review_id
@@ -193,11 +194,8 @@ class Film:
                 if like_link_target and 'data-likeable-uid' in like_link_target.attrs:
                     review_info['review_id'] = like_link_target['data-likeable-uid']
 
-                
-                # add the data to the reviews dictionary
-                reviews_dict[review_info['review_id']] = review_info
-        return reviews_dict
-film = Film()
-film.set_film_name('the-substance')
-reviews = Film.FilmReview(film.filmName)
-reviews.get_film_reviews(2)
+                reviews_list.append(review_info)
+
+        return reviews_list
+    
+
