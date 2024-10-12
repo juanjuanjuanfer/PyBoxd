@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 from requests import get as requests_get, exceptions as requests_exceptions
-from re import findall, compile, DOTALL, search
+from re import findall, compile, IGNORECASE, search, sub
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import chain
 
@@ -13,32 +13,36 @@ class Film:
         self.filmDirectors: list = []
         self.filmSynopsis: str = ""
         self.filmPoster: str = ""
-        self.filmCast: dict = []
-        self.filmCrew: dict = {}
-        self.filmDetails: dict = {}
         self.filmGenres: dict = {}
-        self.filmReleases: dict = {}
-        self.filmDuration: int = 0
         self.filmStats: dict = {}
         self.filmRating: dict = {}
         self.filmMainResponse: str = None
         self.filmMainSoup: BeautifulSoup = None
         self.filmAverageRating: int = 0
-        self.filmAverageRatingOver5: int = 0
+        self.filmTrailerLink = ""
+        self.filmCast: dict = []
+        self.filmCrew: dict = {}
+
+
+        self.filmDetails: dict = {}
+        self.filmReleases: dict = {}
+        self.filmDuration: int = 0
 
 
     def __str__(self) -> str:
         film_status = self.filmName
         return str(film_status)
     
-    def set_film_name(self, film_name:str) -> None:
+    def set_film_name(self, film_name:str, auto_scrape:bool = True) -> None:
 
         try:
 
             self.filmName = film_name
             self.filmMainResponse = requests_get(f'https://letterboxd.com/film/{self.filmName}/').text
             self.filmMainSoup = BeautifulSoup(self.filmMainResponse, 'html.parser')
-            self.get_film_data()
+
+            if auto_scrape:
+                self.get_film_data()
     
             return
         
@@ -48,6 +52,7 @@ class Film:
             return
 
     def get_film_data(self) -> None:
+
         self.filmReleaseYear = Film.scrape_film_release_year(soup = self.filmMainSoup)
         
         self.filmDirectors = Film.scrape_film_directors(soup = self.filmMainSoup)
@@ -57,15 +62,34 @@ class Film:
         self.filmRating = Film.scrape_average_rating(film_name=self.filmName)
 
         self.filmAverageRating = (sum([key * value for key, value in enumerate(self.filmRating.values(), start=1)]) / sum(self.filmRating.values())).__round__(3)
-        
-        self.filmAverageRatingOver5 = (self.filmAverageRating / 2).__round__(1)
 
         self.filmPoster = Film.scrape_film_poster(soup=self.filmMainSoup, film_name=self.filmName)
+
+        self.filmGenres = Film.scrape_film_genres(film_name=self.filmName) if self.filmGenres == {} else print("Genres already set")
 
     def get_film_stats(self) -> None:
 
         self.filmStats = Film.scrape_film_stats(film_name=self.filmName)
 
+    def get_film_reviews(self, pages:int=1) -> None:
+
+        self.filmReviews = Film.scrape_film_reviews(film_name=self.filmName, pages=pages)
+
+    def get_film_genres(self) -> None:
+
+        self.filmGenres = Film.scrape_film_genres(film_name=self.filmName) if self.filmGenres == {} else print("Genres already set")
+
+    def get_film_trailer(self) -> None:
+
+        self.filmTrailerLink = Film.scrape_trailer_link(soup=self.filmMainSoup)
+
+    def get_film_cast(self) -> None:
+
+        self.filmCast = Film.scrape_film_cast(soup = self.filmMainSoup)
+
+    def get_film_crew(self) -> None:
+
+        self.filmCrew = Film.scrape_film_crew(soup=self.filmMainSoup)
 
     @staticmethod
     def scrape_film_stats(film_name:str) -> dict:
@@ -137,20 +161,6 @@ class Film:
         poster_path = '/'.join(split_id)
         url = f'https://a.ltrbxd.com/resized/film-poster/{poster_path}/{film_id}-{film_name}-0-1000-0-1500-crop.jpg'
         return url
-
-    class FilmReview:
-        def __init__(self, filmName:str) -> None:
-            self.filmName: str = filmName
-            self.filmReviews: list = []
-
-        
-        def __str__(self) -> str:
-            return str(self.filmName)
-
-        def get_film_reviews(self, pages:int=1) -> None:
-            self.filmReviews = Film.scrape_film_reviews(film_name=self.filmName, pages=pages)
-            
-
     @staticmethod
     def scrape_film_reviews(film_name:str, pages:int=1) -> dict:
         reviews_list = []
@@ -196,6 +206,95 @@ class Film:
 
                 reviews_list.append(review_info)
 
-        return reviews_list
-    
+        return reviews_list   
+    @staticmethod
+    def scrape_film_genres(film_name):
+        response = requests_get(f'https://letterboxd.com/film/{film_name}/genres/')
+        soup = BeautifulSoup(response.text, 'html.parser')
+        genre_pattern = compile(r'/films/genre/[\w-]+/') 
+
+        # Find all 'a' tags with an href that matches the genre pattern
+        genres = soup.find_all('a', href=genre_pattern)
+        genres = [i.text for i in genres]
+        
+        return genres
+    @staticmethod
+    def scrape_trailer_link(soup):
+        # Find the 'a' tag with class 'play track-event js-video-zoom cboxElement' and data-track-category 'Trailer'
+        # Find the 'p' tag containing the 'a' tag with the trailer link
+        trailer_paragraph = soup.find('p', class_='trailer-link js-watch-panel-trailer')
+
+        # Now, find the 'a' tag within this 'p' tag
+        if trailer_paragraph:
+            trailer_link = trailer_paragraph.find('a', class_='play track-event js-video-zoom')
+            if trailer_link:
+                youtube_url = trailer_link.get('href')
+                # Ensure the URL is complete
+                if youtube_url.startswith('//'):
+                    youtube_url = 'https:' + youtube_url
+                return youtube_url
+    @staticmethod
+    def scrape_film_cast(soup: BeautifulSoup) -> dict:
+        cast = []
+        cast_paragraph = soup.find('div', class_='cast-list text-sluglist')
+        
+        if cast_paragraph:
+            for actor_link in cast_paragraph.find_all('a', class_='text-slug tooltip'):
+
+                character_match = search(r'title="([^"]+)"', str(actor_link)).group(1) if search(r'title="([^"]+)"', str(actor_link)) else "No Information"
+ 
+                actor_name = actor_link.text.strip()
+
+                if character_match and actor_name:
+                    cast.append( {
+                        'actor': actor_name,
+                        'character': character_match
+                    })
+        
+        return cast
+    @staticmethod
+    def scrape_film_crew(soup: BeautifulSoup) -> dict:
+
+        crew = []
+
+        cleaned_crew = []
+
+        final_crew = {}
+
+        crew_paragraph = soup.find('div', id='tab-crew')
+
+        for i in crew_paragraph:
+
+            if i.text == " " or i.text == "\n" or i.text == "\t":
+
+                continue
+
+            else:
+
+                crew.append(i.text)
+
+        for item in crew:
+
+            cleaned_item = sub(r'\s+', ' ', item).strip()
+
+            cleaned_item = sub(r'\b(\w+)(\s+\1\b)+', r'\1', cleaned_item, flags=IGNORECASE)
+
+            if cleaned_item:
+
+                cleaned_crew.append(cleaned_item)
+
+        for i in range(0, len(cleaned_crew), 2):
+
+            if i + 1 < len(cleaned_crew):
+
+                final_crew[cleaned_crew[i]] = cleaned_crew[i + 1]
+
+        return final_crew
+
+
+movie = Film()
+movie.set_film_name(film_name="chungking-express", auto_scrape=False)
+movie.get_film_crew()
+print(movie.filmCrew)
+
 
