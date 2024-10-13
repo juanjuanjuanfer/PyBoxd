@@ -4,92 +4,78 @@ from re import findall, compile, DOTALL
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import chain
 
-class PyBoxd():
 
-    class user():
+class User():
 
-        def __init__(self) -> None: 
-            self.username = None
-            self.films = 0
-            self.thisYear = 0
-            self.following = 0
-            self.followers = 0
-            self.favoriteFilms = []
-            self.mainResponse = None
-            self.mainSoup = None
-            self.filmsResponse = None
-            self.filmsSoup = None
-            self.watchedFilms = []
-            self.watchlist = []
-            self.userNetwork = {}
-            self.isPatron = False
-            self.isPro = False
-            self.userLists = 0
-            self.userImage = None
+    def __init__(self) -> None: 
+        self.username = None
+        self.films = 0
+        self.thisYear = 0
+        self.following = 0
+        self.followers = 0
+        self.favoriteFilms = []
+        self.mainResponse = None
+        self.mainSoup = None
+        self.filmsResponse = None
+        self.filmsSoup = None
+        self.watchedFilms = []
+        self.watchlist = []
+        self.userNetwork = {}
+        self.isPatron = False
+        self.isPro = False
+        self.userLists = 0
+        self.userImage = None
 
 
-        def __str__(self):
-            userInfo = f'Username: {self.username}\nFilms: {self.films}\nThis Year:{self.thisYear}\nLists: {self.userLists}\nFollowing: {self.following}\nFollowers: {self.followers}\nFavorite Films: {self.favoriteFilms}\nPatron: {self.isPatron}\nPro: {self.isPro}'
-            return userInfo
-        
-        def set_username(self, username) -> None:
-            try:
-                self.mainResponse = requests_get(f'https://letterboxd.com/{username}/').text
-                self.mainSoup =  BeautifulSoup(self.mainResponse, 'html.parser')
-                self.username = username
-            except requests_exceptions.RequestException as e:
-                print(f"Failed to retrieve data: {e}")
-                return
-     
-        def get_profile_stats(self) -> None:
-            
-            self.profileStats = PyBoxd.scrape_profile_stats(soup = self.mainSoup)
-            self.films = self.profileStats[0]['Films']
-            self.thisYear = self.profileStats[0]['This year']
-            self.following = self.profileStats[0]['Following']
-            self.followers = self.profileStats[0]['Followers']
-            self.userLists = self.profileStats[0]['Lists']   
-            self.favoriteFilms = self.profileStats[1]
-            self.isPatron = self.profileStats[2][0]
-            self.isPro = self.profileStats[2][1]
+    def __str__(self):
+        userInfo = f'Username: {self.username}\nFilms: {self.films}\nThis Year:{self.thisYear}\nLists: {self.userLists}\nFollowing: {self.following}\nFollowers: {self.followers}\nFavorite Films: {self.favoriteFilms}\nPatron: {self.isPatron}\nPro: {self.isPro}'
+        return userInfo
     
-        def get_user_watched_films(self) -> None:
-            self.filmsResponse = requests_get(f'https://letterboxd.com/{self.username}/films/').text
-            self.filmsSoup = BeautifulSoup(self.filmsResponse, 'html.parser')
-            self.watchedFilms = PyBoxd.scrape_watched_films(user = self.username, soup = self.filmsSoup)
-
-        def get_user_watchlist(self) -> None:
-            self.filmsResponse = requests_get(f'https://letterboxd.com/{self.username}/watchlist/').text
-            self.filmsSoup = BeautifulSoup(self.filmsResponse, 'html.parser')
-            self.watchlist = PyBoxd.scrape_watchlist(user = self.username, soup = self.filmsSoup)
-
-        def get_user_network(self) -> None:
-            self.networkFollowingResponse = requests_get(f'https://letterboxd.com/{self.username}/following/').text
-            self.networkFollowerResponse = requests_get(f'https://letterboxd.com/{self.username}/followers/').text
-            self.networkFollowingSoup = BeautifulSoup(self.networkFollowingResponse, 'html.parser')
-            self.networkFollowerSoup = BeautifulSoup(self.networkFollowerResponse, 'html.parser')
-            self.userNetwork = PyBoxd.scrape_user_network(user = self.username, soup = self.networkFollowingSoup, soup2 = self.networkFollowerSoup)
-
-        def get_user_bio(self) -> None:
-            self.userBio = PyBoxd.scrapeBio(soup = self.mainSoup)
-
-        def get_user_image(self) -> None:
-            self.userImage = findall(r'<img\s+[^>]*src="([^"]+)"', str(self.mainSoup.find('span', class_='avatar -a110 -large')))
-
-    class user_diary():
+    def set_username(self, username) -> None:
+        try:
+            self.mainResponse = requests_get(f'https://letterboxd.com/{username}/')
+            self.mainSoup =  BeautifulSoup(self.mainResponse.text, 'html.parser')
+            self.username = username
+        except requests_exceptions.RequestException as e:
+            print(f"Failed to retrieve data: {e}")
+            return
+    
+    def get_profile_stats(self) -> None:
         
-        def __init__(self, user:object) -> None:
-            self.user = user.username
-            self.userDiary = None
+        self.profileStats = User.scrape_profile_stats(soup = self.mainSoup)
+        self.films = self.profileStats[0]['Films']
+        self.thisYear = self.profileStats[0]['This year']
+        self.following = self.profileStats[0]['Following']
+        self.followers = self.profileStats[0]['Followers']
+        self.userLists = self.profileStats[0]['Lists']   
+        self.favoriteFilms = self.profileStats[1]
+        self.isPatron = self.profileStats[2][0]
+        self.isPro = self.profileStats[2][1]
 
-        def __str__(self) -> str:
-            userDriaryInfo = f'Username: {self.user}'
-            return userDriaryInfo
+    def get_user_watched_films(self) -> None:
+        self.filmsResponse = requests_get(f'https://letterboxd.com/{self.username}/films/').text
+        self.filmsSoup = BeautifulSoup(self.filmsResponse, 'html.parser')
+        self.watchedFilms = User.scrape_watched_films(user = self.username, soup = self.filmsSoup)
 
-        def get_user_diary(self) -> None:
-            self.userDiaryResponse = requests_get(f'https://letterboxd.com/{self.user}/films/diary/').text
-            self.userDiarySoup = BeautifulSoup(self.userDiaryResponse, 'html.parser')
-            self.userDiary = PyBoxd.scrape_user_diary(user = self.user, soup = self.userDiarySoup)
+    def get_user_watchlist(self) -> None:
+        self.filmsResponse = requests_get(f'https://letterboxd.com/{self.username}/watchlist/').text
+        self.filmsSoup = BeautifulSoup(self.filmsResponse, 'html.parser')
+        self.watchlist = User.scrape_watchlist(user = self.username, soup = self.filmsSoup)
+
+    def get_user_network(self) -> None:
+        self.networkFollowingResponse = requests_get(f'https://letterboxd.com/{self.username}/following/').text
+        self.networkFollowerResponse = requests_get(f'https://letterboxd.com/{self.username}/followers/').text
+        self.networkFollowingSoup = BeautifulSoup(self.networkFollowingResponse, 'html.parser')
+        self.networkFollowerSoup = BeautifulSoup(self.networkFollowerResponse, 'html.parser')
+        self.userNetwork = User.scrape_user_network(user = self.username, soup = self.networkFollowingSoup, soup2 = self.networkFollowerSoup)
+
+    def get_user_bio(self) -> None:
+        self.userBio = User.scrapeBio(soup = self.mainSoup)
+
+    def get_user_image(self) -> None:
+        self.userImage = findall(r'<img\s+[^>]*src="([^"]+)"', str(self.mainSoup.find('span', class_='avatar -a110 -large')))
+
+
 
 
     @staticmethod
@@ -107,7 +93,7 @@ class PyBoxd():
         badges.append([True if soup.find('span', class_='badge -pro') else False])
 
         return [base_dict, favorite_films, badges]
-    
+
     @staticmethod
     def process_page(user:str, i:int, page_type:str='films') -> list:
         try:
@@ -118,7 +104,7 @@ class PyBoxd():
         except requests_exceptions as e:
             print(f"Error fetching page {i}: {e}")
             return []
-    
+
     @staticmethod
     def scrape_watched_films(user: str, soup: BeautifulSoup) -> list:
         pages = findall(r'films/page/(\d+)/', str(soup))
@@ -127,14 +113,14 @@ class PyBoxd():
         last_page = max([int(page) for page in pages])
         
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(PyBoxd.process_page, user, i, page_type="films") for i in range(1, last_page + 1)]
+            futures = [executor.submit(user.process_page, user, i, page_type="films") for i in range(1, last_page + 1)]
         
             film_slugs = []
             for future in as_completed(futures):
                 film_slugs.append(future.result())
 
         return list(chain.from_iterable(film_slugs))
-    
+
     @staticmethod
     def scrape_watchlist(user:str, soup:BeautifulSoup) -> list:
         pages = findall(r'watchlist/page/(\d+)/', str(soup))
@@ -142,14 +128,14 @@ class PyBoxd():
             pages = ['1']
         last_page = max([int(page) for page in pages])
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(PyBoxd.process_page, user, i, page_type="watchlist") for i in range(1, last_page + 1)]
+            futures = [executor.submit(user.process_page, user, i, page_type="watchlist") for i in range(1, last_page + 1)]
 
             film_slugs = []
             for future in as_completed(futures):
                 film_slugs.append(future.result())
         
         return list(chain.from_iterable(film_slugs))
-    
+
     @staticmethod    
     def scrape_user_network(user:str,soup:BeautifulSoup, soup2:BeautifulSoup) -> dict:
         dataFollowing = []
@@ -194,12 +180,12 @@ class PyBoxd():
             response.raise_for_status()  # Raise an error for bad status codes
             soup = BeautifulSoup(response.text, 'html.parser')
             return {
-                "dates": PyBoxd.find_dates(soup),
-                "film_slugs": PyBoxd.find_film_slugs(soup),
-                "ratings": PyBoxd.find_ratings(soup),
-                "likes": PyBoxd.find_likes(soup),
-                "rewatches": PyBoxd.find_rewatches(soup),
-                "reviews": PyBoxd.find_reviews(soup)
+                "dates": user.find_dates(soup),
+                "film_slugs": user.find_film_slugs(soup),
+                "ratings": user.find_ratings(soup),
+                "likes": user.find_likes(soup),
+                "rewatches": user.find_rewatches(soup),
+                "reviews": user.find_reviews(soup)
             }
         except requests_exceptions as e:
             print(f"Error fetching page {i}: {e}")
@@ -216,16 +202,16 @@ class PyBoxd():
         last_page = max([int(page) for page in pages])
 
         diary_data = {
-            "dates": PyBoxd.find_dates(soup),
-            "film_slugs": PyBoxd.find_film_slugs(soup),
-            "ratings": PyBoxd.find_ratings(soup),
-            "likes": PyBoxd.find_likes(soup),
-            "rewatches": PyBoxd.find_rewatches(soup),
-            "reviews": PyBoxd.find_reviews(soup)
+            "dates": user.find_dates(soup),
+            "film_slugs": user.find_film_slugs(soup),
+            "ratings": user.find_ratings(soup),
+            "likes": user.find_likes(soup),
+            "rewatches": user.find_rewatches(soup),
+            "reviews": user.find_reviews(soup)
         }
 
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(PyBoxd.process_diary_page, user, i) for i in range(2, last_page + 1)]
+            futures = [executor.submit(user.process_diary_page, user, i) for i in range(2, last_page + 1)]
             
             for future in as_completed(futures):
                 page_data = future.result()
@@ -286,43 +272,21 @@ class PyBoxd():
             for td in findall(r'<td class="td-review center(?: [^"]*)?">(.*?)</td>', str(soup), DOTALL)
         ]
 
+class user_diary():
+    
+    def __init__(self, user:object) -> None:
+        self.user = user.username
+        self.userDiary = None
+
+    def __str__(self) -> str:
+        userDriaryInfo = f'Username: {self.user}'
+        return userDriaryInfo
+
+    def get_user_diary(self) -> None:
+        self.userDiaryResponse = requests_get(f'https://letterboxd.com/{self.user}/films/diary/').text
+        self.userDiarySoup = BeautifulSoup(self.userDiaryResponse, 'html.parser')
+        self.userDiary = User.scrape_user_diary(user = self.user, soup = self.userDiarySoup)
 
 
 
 
-
-def main():
-    user = PyBoxd.user()
-    user.set_username('fer_nwn') #kurstboy
-    #user.get_profile_stats()
-    #user.get_user_watched_films()
-    #user.get_user_watchlist()
-    #user.get_user_network()
-    #user.get_user_bio()
-    print(user)
-    user.get_user_image()
-    print(user.userImage)
-    #diary = PyBoxd.user_diary(user)
-    #print(diary)
-    #import time
-    #start_time = time.time()
-    #diary.get_user_diary()
-    #end_time = time.time()
-    #print(f'Time taken to get user diary: {end_time - start_time} seconds')
-    #print(len(diary.userDiary))
-
-    #[print(diary.userDiary[_]) for _ in range(len(diary.userDiary))]
-    #print(user)
-    #print(len(user.watchedFilms))
-    #print(len(user.watchlist))
-    #print(user.userNetwork)
-    #print(user.userBio)
-
-main()
-
-""" 
-    Username: kurstboy
-    Time taken to get user diary: 37.64339208602905 seconds
-    1727 movies scraped
-
-"""
