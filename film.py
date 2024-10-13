@@ -821,5 +821,3 @@ class Film:
 
         return similar_films
 
-a = Film.scrape_film_releases(BeautifulSoup(requests_get('https://letterboxd.com/film/the-substance/').text, 'html.parser'))
-print(a)
