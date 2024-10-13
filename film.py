@@ -97,6 +97,7 @@ class Film:
                 Boolean. If `True`, scrape rating and average rating. Defaults to `True`.
 
                 **poster**
+                STILL IN DEVELOPMENT.
                 Boolean. If `True`, scrape poster. Defaults to `True`.
 
                 **genres**
@@ -208,7 +209,6 @@ class Film:
     def get_film_trailer(self) -> None:
 
         """
-            # STILL IN DEVELOPMENT
             Scrape film trailer link.
 
             Uses the `Film.filmMainSoup` to scrape the trailer link.
@@ -592,9 +592,6 @@ class Film:
     def scrape_trailer_link(soup:BeautifulSoup) -> str:
 
         """
-            STILL IN DEVELOPMENT.
-            Not working for all films.
-
             Scrape film trailer link.
 
             ### Parameters:
